@@ -14,11 +14,11 @@ The goal is to collect, clean, analyse and visualise public electricity data fro
 Phase 0-1: project setup and data source audit.
 
 ## Planned Data Sources
-- ESCO — electricity balance, settlement indicators and market-related data
-- GSE — power system, generation, consumption and grid data
-- GENEX — day-ahead and intraday market information
-- GNERC — regulatory and electricity market reports
-- Secondary sources — market reports and analytical publications
+- ESCO - electricity balance, settlement indicators and market-related data
+- GSE - power system, generation, consumption and grid data
+- GENEX - day-ahead and intraday market information
+- GNERC - regulatory and electricity market reports
+- Secondary sources - market reports and analytical publications
 
 ## Status
 Initial project setup in progress.
