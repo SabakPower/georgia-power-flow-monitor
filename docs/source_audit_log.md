@@ -1,60 +1,64 @@
-# Source Audit Log
-
-This file records the actual source audit work for the Georgia Power Flow Monitor project.
-
-## Audit Rules
-
-- Use official primary sources first.
-- Record the source URL before downloading or cleaning anything.
-- Keep original files in `data/raw/`.
-- Keep cleaned files in `data/processed/`.
-- Do not modify raw source files.
-- Document uncertainty, missing values and format issues.
-
----
-
 ## ESCO — Electricity Balance
 
 Date checked:
 2026-05-08
 
 Source:
-ESCO — Electricity Balance
+ESCO — Electricity Balance 2025
 
 Source URL:
-[Add official ESCO URL here]
+[Paste the exact ESCO page URL you used]
 
 Data category:
 Electricity balance
 
-Expected data:
-- Generation
-- Consumption
-- Imports
-- Exports
-- Transit
-- Hydro generation
-- Thermal generation
-- Wind generation
-- Monthly electricity values
+Dataset created:
+data/raw/esco/electricity_balance_monthly.csv
+
+Collection method:
+Manual extraction from ESCO electricity balance table.
 
 Format observed:
-[To fill: webpage / PDF / Excel / CSV]
+Web table / PDF-style balance page.
 
 Frequency:
-[To fill: annual / monthly / unknown]
+Annual page with monthly values.
 
-Historical coverage:
-[To fill]
+Granularity:
+Monthly.
 
-Usefulness for dashboard:
-High
+Coverage added:
+2025, January to December.
 
-Automation potential:
-[To fill: high / medium / low]
+Rows:
+12
+
+Columns:
+28
+
+Key fields:
+- generation_mln_kwh
+- thermal_mln_kwh
+- wind_mln_kwh
+- hydro_mln_kwh
+- other_generation_mln_kwh
+- import_mln_kwh
+- export_mln_kwh
+- transit_mln_kwh
+- total_resource_mln_kwh
+- total_demand_including_losses_mln_kwh
+
+Validation:
+Passed structural and mathematical validation using scripts/validate_esco_balance.py.
+
+Important modelling note:
+The residual between total generation and visible generation categories was added as other_generation_mln_kwh. It should not be labelled as solar or any other technology until verified from an official source.
 
 Limitations:
-[To fill]
+- Manual extraction may introduce typing errors.
+- Source structure must be checked for other years.
+- Need to verify whether values are final or preliminary.
+- Need to confirm exact unit convention from ESCO source.
 
 Decision:
-Likely first dataset candidate.
+Selected as the first dataset candidate for the dashboard.
