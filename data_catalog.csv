@@ -1,0 +1,8 @@
+﻿source_name,institution,source_type,data_category,frequency,file_format,language,access_method,manual_download_required,priority,notes,status
+ESCO Electricity Balance,ESCO,Primary,System balance,Annual,PDF,English/Georgian,Website,Yes,High,Includes generation consumption imports exports and demand balance,To review
+ESCO Settlement Indicators,ESCO,Primary,Market settlement,Monthly,Web/PDF,English/Georgian,Website,Yes,High,Useful for balancing electricity and settlement indicators,To review
+GSE Data from Power System,GSE,Primary,System data,Variable,Web/Download,English/Georgian,Website,Yes,High,Includes installed capacity and power system data,To review
+GSE Production and Consumption,GSE,Primary,Generation and consumption,Variable,Download,English/Georgian,Website,Yes,High,Potential source for generation and demand tracking,To review
+GENEX Market Reports,GENEX,Primary,Market trading,Annual/Periodic,PDF/Web,Georgian,Website,Yes,Medium,Day-ahead and intraday market data publications,To review
+GNERC Annual Reports,GNERC,Primary,Regulatory and market review,Annual,PDF,English/Georgian,Website,Yes,Medium,Useful for market structure tariffs and regulation,To review
+Secondary Market Reports,Various,Secondary,Market commentary,Periodic,PDF,English/Georgian,Website,Yes,Low,Useful for interpretation but not primary source,To review
