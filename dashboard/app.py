@@ -100,6 +100,12 @@ st.plotly_chart(fig_gen_cons, use_container_width=True)
 
 st.subheader("Monthly Generation Mix")
 
+# -----------------------------
+# Generation Mix
+# -----------------------------
+
+st.subheader("Monthly Generation Mix")
+
 generation_mix = df_year[
     [
         "date",
@@ -115,6 +121,17 @@ generation_mix_long = generation_mix.melt(
     var_name="generation_source",
     value_name="mln_kwh",
 )
+
+generation_source_labels = {
+    "hydro_mln_kwh": "Hydro",
+    "thermal_mln_kwh": "Thermal",
+    "wind_mln_kwh": "Wind",
+    "other_generation_mln_kwh": "Other",
+}
+
+generation_mix_long["generation_source"] = generation_mix_long[
+    "generation_source"
+].replace(generation_source_labels)
 
 fig_mix = px.area(
     generation_mix_long,
