@@ -116,7 +116,7 @@ generation_mix_long = generation_mix.melt(
     value_name="mln_kwh",
 )
 
-fig_mix = px.bar(
+fig_mix = px.area(
     generation_mix_long,
     x="date",
     y="mln_kwh",
