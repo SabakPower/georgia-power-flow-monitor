@@ -63,13 +63,22 @@ total_imports = df_year["import_mln_kwh"].sum()
 total_exports = df_year["export_mln_kwh"].sum()
 net_imports = total_imports - total_exports
 
-col1, col2, col3, col4, col5 = st.columns(5)
+st.caption("Unit: GWh. Note: 1 GWh = 1 million kWh.")
 
-col1.metric("Generation", f"{total_generation:,.0f} mln kWh")
-col2.metric("Consumption", f"{total_consumption:,.0f} mln kWh")
-col3.metric("Imports", f"{total_imports:,.0f} mln kWh")
-col4.metric("Exports", f"{total_exports:,.0f} mln kWh")
-col5.metric("Net Imports", f"{net_imports:,.0f} mln kWh")
+top_col1, top_col2, top_col3 = st.columns(3)
+
+top_col1.metric("Total Generation", f"{total_generation:,.0f} GWh")
+top_col2.metric("Total Consumption", f"{total_consumption:,.0f} GWh")
+top_col3.metric("Net Imports", f"{net_imports:,.0f} GWh")
+
+bottom_col1, bottom_col2, bottom_col3 = st.columns(3)
+
+bottom_col1.metric("Imports", f"{total_imports:,.0f} GWh")
+bottom_col2.metric("Exports", f"{total_exports:,.0f} GWh")
+bottom_col3.metric(
+    "Import Dependency",
+    f"{df_year['import_dependency_pct'].mean():.1f}%"
+)
 
 
 # -----------------------------
