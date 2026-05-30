@@ -21,6 +21,10 @@ def load_data():
     df["date"] = pd.to_datetime(df["date"])
     return df
 
+def calculate_share_pct(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
+    """Calculate percentage share safely, avoiding division-by-zero errors."""
+    safe_denominator = denominator.where(denominator != 0)
+    return numerator.div(safe_denominator).mul(100).fillna(0).round(2)
 
 st.title("Georgia Power Flow Monitor")
 
@@ -264,34 +268,227 @@ st.subheader("Generation and Import Indicators")
 
 col_a, col_b = st.columns(2)
 
-with col_a:
-    fig_shares = px.line(
-        df_year,
-        x="date",
-        y=["hydro_share_pct", "thermal_share_pct", "wind_share_pct"],
-        markers=True,
-        labels={
-            "date": "Month",
-            "value": "%",
-            "variable": "Indicator",
-        },
-        title="Generation Source Shares",
-    )
-    st.plotly_chart(fig_shares, use_container_width=True)
+# -----------------------------
+# Hydro Dependence Analysis
+# -----------------------------
+
+st.subheader("Hydro Dependence Analysis")
+
+generation_share_data = df_year[
+    [
+        "date",
+        "hydro_mln_kwh",
+        "thermal_mln_kwh",
+        "wind_mln_kwh",
+        "other_generation_mln_kwh",
+    ]
+].copy()
+
+generation_share_data["total_generation_gwh"] = (
+    generation_share_data["hydro_mln_kwh"]
+    + generation_share_data["thermal_mln_kwh"]
+    + generation_share_data["wind_mln_kwh"]
+    + generation_share_data["other_generation_mln_kwh"]
+)
+
+generation_share_data["non_hydro_generation_gwh"] = (
+    generation_share_data["thermal_mln_kwh"]
+    + generation_share_data["wind_mln_kwh"]
+    + generation_share_data["other_generation_mln_kwh"]
+)
+
+generation_share_data["Hydro"] = calculate_share_pct(
+    generation_share_data["hydro_mln_kwh"],
+    generation_share_data["total_generation_gwh"],
+)
+
+generation_share_data["Non-hydro"] = calculate_share_pct(
+    generation_share_data["non_hydro_generation_gwh"],
+    generation_share_data["total_generation_gwh"],
+)
+
+hydro_dependence_long = generation_share_data[
+    ["date", "Hydro", "Non-hydro"]
+].melt(
+    id_vars="date",
+    var_name="Generation source",
+    value_name="Share",
+)
+
+fig_hydro_dependence = px.area(
+    hydro_dependence_long,
+    x="date",
+    y="Share",
+    color="Generation source",
+    labels={
+        "date": "Month",
+        "Share": "Share of domestic generation (%)",
+        "Generation source": "Generation source",
+    },
+    title="Hydro Dependence of Domestic Generation",
+)
+
+fig_hydro_dependence.update_yaxes(
+    title_text="Share of domestic generation (%)",
+    range=[0, 100],
+    ticksuffix="%",
+)
+
+fig_hydro_dependence.update_xaxes(title_text="Month")
+
+st.plotly_chart(fig_hydro_dependence, use_container_width=True)
+
+st.caption(
+    "This chart shows how much of Georgia's domestic electricity generation comes from hydro "
+    "versus all non-hydro sources combined."
+)
+
+
+generation_share_data["Thermal"] = calculate_share_pct(
+    generation_share_data["thermal_mln_kwh"],
+    generation_share_data["non_hydro_generation_gwh"],
+)
+
+generation_share_data["Wind"] = calculate_share_pct(
+    generation_share_data["wind_mln_kwh"],
+    generation_share_data["non_hydro_generation_gwh"],
+)
+
+generation_share_data["Other"] = calculate_share_pct(
+    generation_share_data["other_generation_mln_kwh"],
+    generation_share_data["non_hydro_generation_gwh"],
+)
+
+non_hydro_breakdown_long = generation_share_data[
+    ["date", "Thermal", "Wind", "Other"]
+].melt(
+    id_vars="date",
+    var_name="Generation source",
+    value_name="Share",
+)
+
+fig_non_hydro_breakdown = px.area(
+    non_hydro_breakdown_long,
+    x="date",
+    y="Share",
+    color="Generation source",
+    labels={
+        "date": "Month",
+        "Share": "Share within non-hydro generation (%)",
+        "Generation source": "Generation source",
+    },
+    title="Breakdown of Non-Hydro Generation",
+)
+
+fig_non_hydro_breakdown.update_yaxes(
+    title_text="Share within non-hydro generation (%)",
+    range=[0, 100],
+    ticksuffix="%",
+)
+
+fig_non_hydro_breakdown.update_xaxes(title_text="Month")
+
+st.plotly_chart(fig_non_hydro_breakdown, use_container_width=True)
+
+st.caption(
+    "This chart excludes hydro and shows the composition of non-hydro generation only. "
+    "The percentages are within non-hydro generation, not total domestic generation."
+)
 
 with col_b:
-    fig_import_dependency = px.line(
-        df_year,
-        x="date",
-        y="import_dependency_pct",
-        markers=True,
-        labels={
-            "date": "Month",
-            "import_dependency_pct": "%",
-        },
-        title="Import Dependency",
+    st.subheader("Net Import Position")
+
+    net_import_position_data = df_year[
+        [
+            "date",
+            "import_mln_kwh",
+            "export_mln_kwh",
+            "total_consumption_mln_kwh",
+        ]
+    ].copy()
+
+    net_import_position_data["imports_gwh"] = net_import_position_data[
+        "import_mln_kwh"
+    ]
+
+    net_import_position_data["exports_gwh"] = net_import_position_data[
+        "export_mln_kwh"
+    ]
+
+    calculated_net_imports_gwh = (
+        net_import_position_data["imports_gwh"]
+        - net_import_position_data["exports_gwh"]
     )
-    st.plotly_chart(fig_import_dependency, use_container_width=True)
+
+    if "net_imports_mln_kwh" in df_year.columns:
+        reported_net_imports_gwh = df_year["net_imports_mln_kwh"]
+        max_net_import_difference = (
+            calculated_net_imports_gwh - reported_net_imports_gwh
+        ).abs().max()
+
+        if max_net_import_difference <= 0.05:
+            net_import_position_data["net_imports_gwh"] = reported_net_imports_gwh
+        else:
+            net_import_position_data["net_imports_gwh"] = calculated_net_imports_gwh
+    else:
+        net_import_position_data["net_imports_gwh"] = calculated_net_imports_gwh
+
+    safe_consumption_gwh = net_import_position_data[
+        "total_consumption_mln_kwh"
+    ].where(net_import_position_data["total_consumption_mln_kwh"] != 0)
+
+    net_import_position_data["net_import_position_pct"] = (
+        net_import_position_data["net_imports_gwh"] / safe_consumption_gwh * 100
+    ).round(2)
+
+    fig_net_import_position = go.Figure()
+
+    fig_net_import_position.add_trace(
+        go.Bar(
+            x=net_import_position_data["date"],
+            y=net_import_position_data["net_import_position_pct"],
+            name="Net Import Position",
+            customdata=net_import_position_data[
+                [
+                    "imports_gwh",
+                    "exports_gwh",
+                    "net_imports_gwh",
+                ]
+            ],
+            hovertemplate=(
+                "Month: %{x|%b %Y}<br>"
+                "Imports: %{customdata[0]:,.1f} GWh<br>"
+                "Exports: %{customdata[1]:,.1f} GWh<br>"
+                "Net imports: %{customdata[2]:,.1f} GWh<br>"
+                "Net import position: %{y:.1f}%"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    fig_net_import_position.add_hline(
+        y=0,
+        line_dash="dot",
+    )
+
+    fig_net_import_position.update_layout(
+        title="Net Import Position, % of Consumption",
+        xaxis_title="Month",
+        yaxis_title="Net import position (% of consumption)",
+        showlegend=False,
+    )
+
+    fig_net_import_position.update_yaxes(
+        ticksuffix="%",
+    )
+
+    st.plotly_chart(fig_net_import_position, use_container_width=True)
+
+    st.caption(
+        "Positive values indicate net importer months. Negative values indicate net exporter months. "
+        "Net import position is calculated as imports minus exports, divided by total consumption. "
+        "Physical electricity values are shown in GWh."
+    )
 
 
 # -----------------------------
