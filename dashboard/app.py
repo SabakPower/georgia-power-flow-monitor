@@ -149,17 +149,12 @@ st.caption(
 )
 
 
-# -----------------------------
-# Generation Mix
-# -----------------------------
-
-st.subheader("Monthly Generation Mix")
 
 # -----------------------------
-# Generation Mix
+# Monthly Generation by Source
 # -----------------------------
 
-st.subheader("Monthly Generation Mix")
+st.subheader("Monthly Generation by Source")
 
 generation_mix = df_year[
     [
@@ -174,7 +169,7 @@ generation_mix = df_year[
 generation_mix_long = generation_mix.melt(
     id_vars="date",
     var_name="generation_source",
-    value_name="mln_kwh",
+    value_name="gwh",
 )
 
 generation_source_labels = {
@@ -191,15 +186,18 @@ generation_mix_long["generation_source"] = generation_mix_long[
 fig_mix = px.area(
     generation_mix_long,
     x="date",
-    y="mln_kwh",
+    y="gwh",
     color="generation_source",
     labels={
         "date": "Month",
-        "mln_kwh": "mln kWh",
+        "gwh": "GWh",
         "generation_source": "Generation source",
     },
-    title="Generation Mix by Month",
+    title="Monthly Generation by Source",
 )
+
+fig_mix.update_yaxes(title_text="GWh")
+fig_mix.update_xaxes(title_text="Month")
 
 st.plotly_chart(fig_mix, use_container_width=True)
 
