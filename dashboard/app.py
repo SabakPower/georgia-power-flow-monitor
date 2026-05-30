@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -87,20 +88,65 @@ bottom_col3.metric(
 
 st.subheader("Monthly Generation and Consumption")
 
+generation_consumption = df_year[
+    ["date", "generation_mln_kwh", "total_consumption_mln_kwh"]
+].copy()
+
+generation_consumption = generation_consumption.rename(
+    columns={
+        "generation_mln_kwh": "Total Generation",
+        "total_consumption_mln_kwh": "Total Consumption",
+    }
+)
+
+generation_consumption["Generation Balance"] = (
+    generation_consumption["Total Generation"]
+    - generation_consumption["Total Consumption"]
+)
+
 fig_gen_cons = px.line(
-    df_year,
+    generation_consumption,
     x="date",
-    y=["generation_mln_kwh", "total_consumption_mln_kwh"],
+    y=["Total Generation", "Total Consumption"],
     markers=True,
     labels={
         "date": "Month",
-        "value": "mln kWh",
+        "value": "GWh",
         "variable": "Indicator",
     },
-    title="Generation vs Consumption",
+    title="Total Generation vs Total Consumption",
 )
 
+fig_gen_cons.update_yaxes(title_text="GWh")
+fig_gen_cons.update_xaxes(title_text="Month")
+
 st.plotly_chart(fig_gen_cons, use_container_width=True)
+
+st.caption(
+    "Unit: GWh. Note: 1 GWh = 1 million kWh. "
+    "Source: ESCO electricity balance data."
+)
+
+fig_balance_gap = px.bar(
+    generation_consumption,
+    x="date",
+    y="Generation Balance",
+    labels={
+        "date": "Month",
+        "Generation Balance": "GWh",
+    },
+    title="Monthly Generation Surplus / Deficit",
+)
+
+fig_balance_gap.update_yaxes(title_text="GWh")
+fig_balance_gap.update_xaxes(title_text="Month")
+
+st.plotly_chart(fig_balance_gap, use_container_width=True)
+
+st.caption(
+    "Positive values show months where generation exceeded consumption. "
+    "Negative values show months where consumption exceeded generation."
+)
 
 
 # -----------------------------
@@ -164,21 +210,53 @@ st.plotly_chart(fig_mix, use_container_width=True)
 
 st.subheader("Import and Export Balance")
 
-fig_trade = px.bar(
-    df_year,
-    x="date",
-    y=["import_mln_kwh", "export_mln_kwh", "net_imports_mln_kwh"],
+fig_trade = go.Figure()
+
+fig_trade.add_trace(
+    go.Bar(
+        x=df_year["date"],
+        y=df_year["import_mln_kwh"],
+        name="Imports",
+    )
+)
+
+fig_trade.add_trace(
+    go.Bar(
+        x=df_year["date"],
+        y=df_year["export_mln_kwh"],
+        name="Exports",
+    )
+)
+
+fig_trade.add_trace(
+    go.Scatter(
+        x=df_year["date"],
+        y=df_year["net_imports_mln_kwh"],
+        name="Net Imports",
+        mode="lines+markers",
+    )
+)
+
+fig_trade.update_layout(
+    title="Monthly Cross-Border Electricity Balance",
+    xaxis_title="Month",
+    yaxis_title="GWh",
     barmode="group",
-    labels={
-        "date": "Month",
-        "value": "mln kWh",
-        "variable": "Indicator",
-    },
-    title="Monthly Imports, Exports and Net Imports",
+    legend_title="Indicator",
+)
+
+fig_trade.add_hline(
+    y=0,
+    line_dash="dot",
 )
 
 st.plotly_chart(fig_trade, use_container_width=True)
 
+st.caption(
+    "Unit: GWh. Note: 1 GWh = 1 million kWh. "
+    "Net imports are calculated as imports minus exports. "
+    "Negative values indicate net export months."
+)
 
 # -----------------------------
 # Shares
