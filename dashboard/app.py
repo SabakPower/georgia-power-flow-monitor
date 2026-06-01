@@ -261,18 +261,114 @@ st.caption(
 )
 
 # -----------------------------
-# Shares
+# Generation and Import Indicators
 # -----------------------------
 
 st.subheader("Generation and Import Indicators")
 
-col_a, col_b = st.columns(2)
+
+# -----------------------------
+# Net Import Position
+# -----------------------------
+
+st.markdown("### Net Import Position")
+
+net_import_position_data = df_year[
+    [
+        "date",
+        "import_mln_kwh",
+        "export_mln_kwh",
+        "total_consumption_mln_kwh",
+    ]
+].copy()
+
+net_import_position_data["imports_gwh"] = net_import_position_data["import_mln_kwh"]
+net_import_position_data["exports_gwh"] = net_import_position_data["export_mln_kwh"]
+
+calculated_net_imports_gwh = (
+    net_import_position_data["imports_gwh"]
+    - net_import_position_data["exports_gwh"]
+)
+
+if "net_imports_mln_kwh" in df_year.columns:
+    reported_net_imports_gwh = df_year["net_imports_mln_kwh"]
+    max_net_import_difference = (
+        calculated_net_imports_gwh - reported_net_imports_gwh
+    ).abs().max()
+
+    if max_net_import_difference <= 0.05:
+        net_import_position_data["net_imports_gwh"] = reported_net_imports_gwh
+    else:
+        net_import_position_data["net_imports_gwh"] = calculated_net_imports_gwh
+else:
+    net_import_position_data["net_imports_gwh"] = calculated_net_imports_gwh
+
+safe_consumption_gwh = net_import_position_data["total_consumption_mln_kwh"].where(
+    net_import_position_data["total_consumption_mln_kwh"] != 0
+)
+
+net_import_position_data["net_import_position_pct"] = (
+    net_import_position_data["net_imports_gwh"] / safe_consumption_gwh * 100
+).round(2)
+
+fig_net_import_position = go.Figure()
+
+fig_net_import_position.add_trace(
+    go.Bar(
+        x=net_import_position_data["date"],
+        y=net_import_position_data["net_import_position_pct"],
+        name="Net Import Position",
+        customdata=net_import_position_data[
+            [
+                "imports_gwh",
+                "exports_gwh",
+                "net_imports_gwh",
+            ]
+        ],
+        hovertemplate=(
+            "Month: %{x|%b %Y}<br>"
+            "Imports: %{customdata[0]:,.1f} GWh<br>"
+            "Exports: %{customdata[1]:,.1f} GWh<br>"
+            "Net imports: %{customdata[2]:,.1f} GWh<br>"
+            "Net import position: %{y:.1f}%"
+            "<extra></extra>"
+        ),
+    )
+)
+
+fig_net_import_position.add_hline(
+    y=0,
+    line_dash="dot",
+)
+
+fig_net_import_position.update_layout(
+    title="Net Import Position, % of Consumption",
+    xaxis_title="Month",
+    yaxis_title="Net import position (% of consumption)",
+    showlegend=False,
+    height=430,
+)
+
+fig_net_import_position.update_yaxes(
+    ticksuffix="%",
+)
+
+st.plotly_chart(fig_net_import_position, use_container_width=True)
+
+st.caption(
+    "Positive values indicate net importer months. Negative values indicate net exporter months. "
+    "Net import position is calculated as imports minus exports, divided by total consumption. "
+    "Physical electricity values are shown in GWh."
+)
+
+st.divider()
+
 
 # -----------------------------
 # Hydro Dependence Analysis
 # -----------------------------
 
-st.subheader("Hydro Dependence Analysis")
+st.markdown("### Hydro Dependence Analysis")
 
 generation_share_data = df_year[
     [
@@ -394,103 +490,6 @@ st.caption(
     "This chart excludes hydro and shows the composition of non-hydro generation only. "
     "The percentages are within non-hydro generation, not total domestic generation."
 )
-
-with col_b:
-    st.subheader("Net Import Position")
-
-    net_import_position_data = df_year[
-        [
-            "date",
-            "import_mln_kwh",
-            "export_mln_kwh",
-            "total_consumption_mln_kwh",
-        ]
-    ].copy()
-
-    net_import_position_data["imports_gwh"] = net_import_position_data[
-        "import_mln_kwh"
-    ]
-
-    net_import_position_data["exports_gwh"] = net_import_position_data[
-        "export_mln_kwh"
-    ]
-
-    calculated_net_imports_gwh = (
-        net_import_position_data["imports_gwh"]
-        - net_import_position_data["exports_gwh"]
-    )
-
-    if "net_imports_mln_kwh" in df_year.columns:
-        reported_net_imports_gwh = df_year["net_imports_mln_kwh"]
-        max_net_import_difference = (
-            calculated_net_imports_gwh - reported_net_imports_gwh
-        ).abs().max()
-
-        if max_net_import_difference <= 0.05:
-            net_import_position_data["net_imports_gwh"] = reported_net_imports_gwh
-        else:
-            net_import_position_data["net_imports_gwh"] = calculated_net_imports_gwh
-    else:
-        net_import_position_data["net_imports_gwh"] = calculated_net_imports_gwh
-
-    safe_consumption_gwh = net_import_position_data[
-        "total_consumption_mln_kwh"
-    ].where(net_import_position_data["total_consumption_mln_kwh"] != 0)
-
-    net_import_position_data["net_import_position_pct"] = (
-        net_import_position_data["net_imports_gwh"] / safe_consumption_gwh * 100
-    ).round(2)
-
-    fig_net_import_position = go.Figure()
-
-    fig_net_import_position.add_trace(
-        go.Bar(
-            x=net_import_position_data["date"],
-            y=net_import_position_data["net_import_position_pct"],
-            name="Net Import Position",
-            customdata=net_import_position_data[
-                [
-                    "imports_gwh",
-                    "exports_gwh",
-                    "net_imports_gwh",
-                ]
-            ],
-            hovertemplate=(
-                "Month: %{x|%b %Y}<br>"
-                "Imports: %{customdata[0]:,.1f} GWh<br>"
-                "Exports: %{customdata[1]:,.1f} GWh<br>"
-                "Net imports: %{customdata[2]:,.1f} GWh<br>"
-                "Net import position: %{y:.1f}%"
-                "<extra></extra>"
-            ),
-        )
-    )
-
-    fig_net_import_position.add_hline(
-        y=0,
-        line_dash="dot",
-    )
-
-    fig_net_import_position.update_layout(
-        title="Net Import Position, % of Consumption",
-        xaxis_title="Month",
-        yaxis_title="Net import position (% of consumption)",
-        showlegend=False,
-    )
-
-    fig_net_import_position.update_yaxes(
-        ticksuffix="%",
-    )
-
-    st.plotly_chart(fig_net_import_position, use_container_width=True)
-
-    st.caption(
-        "Positive values indicate net importer months. Negative values indicate net exporter months. "
-        "Net import position is calculated as imports minus exports, divided by total consumption. "
-        "Physical electricity values are shown in GWh."
-    )
-
-
 # -----------------------------
 # Raw Table
 # -----------------------------
