@@ -11,20 +11,35 @@ DATA_FILE = Path("data/processed/esco/electricity_balance_monthly_clean.csv")
 
 st.set_page_config(
     page_title="Georgia Power Flow Monitor",
-    layout="wide"
+    layout="wide",
 )
 
 
 @st.cache_data
-def load_data():
+def load_data() -> pd.DataFrame:
+    """Load processed ESCO electricity balance data."""
     df = pd.read_csv(DATA_FILE)
     df["date"] = pd.to_datetime(df["date"])
     return df
+
 
 def calculate_share_pct(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     """Calculate percentage share safely, avoiding division-by-zero errors."""
     safe_denominator = denominator.where(denominator != 0)
     return numerator.div(safe_denominator).mul(100).fillna(0).round(2)
+
+
+def calculate_scalar_pct(numerator: float, denominator: float) -> float:
+    """Calculate a scalar percentage safely."""
+    if denominator == 0 or pd.isna(denominator):
+        return 0.0
+    return round(numerator / denominator * 100, 1)
+
+
+def format_month(date_value: pd.Timestamp) -> str:
+    """Format a date as short month and year."""
+    return pd.to_datetime(date_value).strftime("%b %Y")
+
 
 st.title("Georgia Power Flow Monitor")
 
@@ -57,7 +72,7 @@ df_year = df[df["year"] == selected_year].copy()
 
 
 # -----------------------------
-# Key Metrics
+# 1. System Overview
 # -----------------------------
 
 st.subheader("System Overview")
@@ -68,29 +83,34 @@ total_imports = df_year["import_mln_kwh"].sum()
 total_exports = df_year["export_mln_kwh"].sum()
 net_imports = total_imports - total_exports
 
+domestic_generation_coverage_pct = calculate_scalar_pct(
+    total_generation,
+    total_consumption,
+)
+
 st.caption("Unit: GWh. Note: 1 GWh = 1 million kWh.")
 
 top_col1, top_col2, top_col3 = st.columns(3)
 
 top_col1.metric("Total Generation", f"{total_generation:,.0f} GWh")
 top_col2.metric("Total Consumption", f"{total_consumption:,.0f} GWh")
-top_col3.metric("Net Imports", f"{net_imports:,.0f} GWh")
+top_col3.metric(
+    "Domestic Generation Coverage",
+    f"{domestic_generation_coverage_pct:.1f}%",
+)
 
 bottom_col1, bottom_col2, bottom_col3 = st.columns(3)
 
 bottom_col1.metric("Imports", f"{total_imports:,.0f} GWh")
 bottom_col2.metric("Exports", f"{total_exports:,.0f} GWh")
-bottom_col3.metric(
-    "Import Dependency",
-    f"{df_year['import_dependency_pct'].mean():.1f}%"
-)
+bottom_col3.metric("Net Imports", f"{net_imports:,.0f} GWh")
 
 
 # -----------------------------
-# Monthly Generation and Consumption
+# 2. Demand and Domestic Supply
 # -----------------------------
 
-st.subheader("Monthly Generation and Consumption")
+st.subheader("Demand and Domestic Supply")
 
 generation_consumption = df_year[
     ["date", "generation_mln_kwh", "total_consumption_mln_kwh"]
@@ -139,7 +159,7 @@ fig_balance_gap = px.bar(
         "date": "Month",
         "Generation Balance": "GWh",
     },
-    title="Monthly Generation Surplus / Deficit",
+    title="Domestic Generation Gap, GWh",
 )
 
 fig_balance_gap.update_yaxes(title_text="GWh")
@@ -148,17 +168,19 @@ fig_balance_gap.update_xaxes(title_text="Month")
 st.plotly_chart(fig_balance_gap, use_container_width=True)
 
 st.caption(
-    "Positive values show months where generation exceeded consumption. "
-    "Negative values show months where consumption exceeded generation."
+    "Positive values mean domestic generation exceeded domestic consumption. "
+    "Negative values mean domestic consumption exceeded domestic generation. "
+    "This is a domestic generation gap, not the full cross-border electricity balance."
 )
 
 
-
 # -----------------------------
-# Monthly Generation by Source
+# 3. Generation Structure
 # -----------------------------
 
-st.subheader("Monthly Generation by Source")
+st.subheader("Generation Structure")
+
+st.markdown("### Monthly Generation by Source")
 
 generation_mix = df_year[
     [
@@ -197,7 +219,7 @@ fig_mix = px.area(
         "gwh": "GWh",
         "generation_source": "Generation source",
     },
-    title="Monthly Generation by Source",
+    title="Monthly Generation by Source, GWh",
 )
 
 fig_mix.update_yaxes(title_text="GWh")
@@ -205,12 +227,140 @@ fig_mix.update_xaxes(title_text="Month")
 
 st.plotly_chart(fig_mix, use_container_width=True)
 
+st.caption(
+    "Unit: GWh. Note: 1 GWh = 1 million kWh. "
+    "Other generation is calculated as the residual between total generation "
+    "and visible generation categories."
+)
+
+st.markdown("### Hydro Dependence Analysis")
+
+generation_share_data = df_year[
+    [
+        "date",
+        "hydro_mln_kwh",
+        "thermal_mln_kwh",
+        "wind_mln_kwh",
+        "other_generation_mln_kwh",
+    ]
+].copy()
+
+generation_share_data["total_generation_gwh"] = (
+    generation_share_data["hydro_mln_kwh"]
+    + generation_share_data["thermal_mln_kwh"]
+    + generation_share_data["wind_mln_kwh"]
+    + generation_share_data["other_generation_mln_kwh"]
+)
+
+generation_share_data["non_hydro_generation_gwh"] = (
+    generation_share_data["thermal_mln_kwh"]
+    + generation_share_data["wind_mln_kwh"]
+    + generation_share_data["other_generation_mln_kwh"]
+)
+
+generation_share_data["Hydro"] = calculate_share_pct(
+    generation_share_data["hydro_mln_kwh"],
+    generation_share_data["total_generation_gwh"],
+)
+
+generation_share_data["Non-hydro"] = calculate_share_pct(
+    generation_share_data["non_hydro_generation_gwh"],
+    generation_share_data["total_generation_gwh"],
+)
+
+hydro_dependence_long = generation_share_data[
+    ["date", "Hydro", "Non-hydro"]
+].melt(
+    id_vars="date",
+    var_name="Generation source",
+    value_name="Share",
+)
+
+fig_hydro_dependence = px.area(
+    hydro_dependence_long,
+    x="date",
+    y="Share",
+    color="Generation source",
+    labels={
+        "date": "Month",
+        "Share": "Share of domestic generation (%)",
+        "Generation source": "Generation source",
+    },
+    title="Hydro Dependence of Domestic Generation",
+)
+
+fig_hydro_dependence.update_yaxes(
+    title_text="Share of domestic generation (%)",
+    range=[0, 100],
+    ticksuffix="%",
+)
+
+fig_hydro_dependence.update_xaxes(title_text="Month")
+
+st.plotly_chart(fig_hydro_dependence, use_container_width=True)
+
+st.caption(
+    "This chart shows how much of Georgia's domestic electricity generation comes from hydro "
+    "versus all non-hydro sources combined."
+)
+
+generation_share_data["Thermal"] = calculate_share_pct(
+    generation_share_data["thermal_mln_kwh"],
+    generation_share_data["non_hydro_generation_gwh"],
+)
+
+generation_share_data["Wind"] = calculate_share_pct(
+    generation_share_data["wind_mln_kwh"],
+    generation_share_data["non_hydro_generation_gwh"],
+)
+
+generation_share_data["Other"] = calculate_share_pct(
+    generation_share_data["other_generation_mln_kwh"],
+    generation_share_data["non_hydro_generation_gwh"],
+)
+
+non_hydro_breakdown_long = generation_share_data[
+    ["date", "Thermal", "Wind", "Other"]
+].melt(
+    id_vars="date",
+    var_name="Generation source",
+    value_name="Share",
+)
+
+fig_non_hydro_breakdown = px.area(
+    non_hydro_breakdown_long,
+    x="date",
+    y="Share",
+    color="Generation source",
+    labels={
+        "date": "Month",
+        "Share": "Share within non-hydro generation (%)",
+        "Generation source": "Generation source",
+    },
+    title="Breakdown of Non-Hydro Generation",
+)
+
+fig_non_hydro_breakdown.update_yaxes(
+    title_text="Share within non-hydro generation (%)",
+    range=[0, 100],
+    ticksuffix="%",
+)
+
+fig_non_hydro_breakdown.update_xaxes(title_text="Month")
+
+st.plotly_chart(fig_non_hydro_breakdown, use_container_width=True)
+
+st.caption(
+    "This chart excludes hydro and shows the composition of non-hydro generation only. "
+    "The percentages are within non-hydro generation, not total domestic generation."
+)
+
 
 # -----------------------------
-# Import / Export Balance
+# 4. Cross-Border Electricity Balance
 # -----------------------------
 
-st.subheader("Import and Export Balance")
+st.subheader("Cross-Border Electricity Balance")
 
 fig_trade = go.Figure()
 
@@ -259,17 +409,6 @@ st.caption(
     "Net imports are calculated as imports minus exports. "
     "Negative values indicate net export months."
 )
-
-# -----------------------------
-# Generation and Import Indicators
-# -----------------------------
-
-st.subheader("Generation and Import Indicators")
-
-
-# -----------------------------
-# Net Import Position
-# -----------------------------
 
 st.markdown("### Net Import Position")
 
@@ -361,139 +500,170 @@ st.caption(
     "Physical electricity values are shown in GWh."
 )
 
-st.divider()
-
 
 # -----------------------------
-# Hydro Dependence Analysis
+# 5. Key System Insights
 # -----------------------------
 
-st.markdown("### Hydro Dependence Analysis")
+st.subheader("Key System Insights")
 
-generation_share_data = df_year[
-    [
-        "date",
-        "hydro_mln_kwh",
-        "thermal_mln_kwh",
-        "wind_mln_kwh",
-        "other_generation_mln_kwh",
+
+def render_insight_card(column, title: str, value: str, month: str) -> None:
+    """Render a compact dashboard insight card."""
+    with column:
+        st.markdown(
+            f"""
+            <div style="
+                padding: 1rem 1.1rem;
+                border: 1px solid rgba(49, 51, 63, 0.18);
+                border-radius: 0.75rem;
+                background-color: rgba(250, 250, 250, 0.03);
+                min-height: 120px;
+            ">
+                <div style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                    {title}
+                </div>
+                <div style="font-size: 1.65rem; font-weight: 700; margin-bottom: 0.35rem;">
+                    {value}
+                </div>
+                <div style="font-size: 0.85rem; opacity: 0.75;">
+                    Month: {month}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+insight_data = df_year.copy()
+
+insight_data["monthly_generation_coverage_pct"] = calculate_share_pct(
+    insight_data["generation_mln_kwh"],
+    insight_data["total_consumption_mln_kwh"],
+)
+
+insight_data["hydro_dependence_pct"] = calculate_share_pct(
+    insight_data["hydro_mln_kwh"],
+    insight_data["generation_mln_kwh"],
+)
+
+insight_data["thermal_backup_pct"] = calculate_share_pct(
+    insight_data["thermal_mln_kwh"],
+    insight_data["generation_mln_kwh"],
+)
+
+if insight_data.empty:
+    st.warning("No data available for the selected year.")
+else:
+    highest_consumption = insight_data.loc[
+        insight_data["total_consumption_mln_kwh"].idxmax()
     ]
-].copy()
+    highest_generation = insight_data.loc[
+        insight_data["generation_mln_kwh"].idxmax()
+    ]
+    lowest_domestic_coverage = insight_data.loc[
+        insight_data["monthly_generation_coverage_pct"].idxmin()
+    ]
+    strongest_net_import = insight_data.loc[
+        insight_data["net_imports_mln_kwh"].idxmax()
+    ]
+    strongest_net_export = insight_data.loc[
+        insight_data["net_imports_mln_kwh"].idxmin()
+    ]
+    highest_hydro_dependence = insight_data.loc[
+        insight_data["hydro_dependence_pct"].idxmax()
+    ]
+    highest_thermal_backup = insight_data.loc[
+        insight_data["thermal_backup_pct"].idxmax()
+    ]
 
-generation_share_data["total_generation_gwh"] = (
-    generation_share_data["hydro_mln_kwh"]
-    + generation_share_data["thermal_mln_kwh"]
-    + generation_share_data["wind_mln_kwh"]
-    + generation_share_data["other_generation_mln_kwh"]
-)
+    row1_col1, row1_col2, row1_col3 = st.columns(3)
 
-generation_share_data["non_hydro_generation_gwh"] = (
-    generation_share_data["thermal_mln_kwh"]
-    + generation_share_data["wind_mln_kwh"]
-    + generation_share_data["other_generation_mln_kwh"]
-)
+    render_insight_card(
+        row1_col1,
+        "Highest Consumption",
+        f"{highest_consumption['total_consumption_mln_kwh']:,.0f} GWh",
+        format_month(highest_consumption["date"]),
+    )
 
-generation_share_data["Hydro"] = calculate_share_pct(
-    generation_share_data["hydro_mln_kwh"],
-    generation_share_data["total_generation_gwh"],
-)
+    render_insight_card(
+        row1_col2,
+        "Highest Generation",
+        f"{highest_generation['generation_mln_kwh']:,.0f} GWh",
+        format_month(highest_generation["date"]),
+    )
 
-generation_share_data["Non-hydro"] = calculate_share_pct(
-    generation_share_data["non_hydro_generation_gwh"],
-    generation_share_data["total_generation_gwh"],
-)
+    render_insight_card(
+        row1_col3,
+        "Lowest Domestic Coverage",
+        f"{lowest_domestic_coverage['monthly_generation_coverage_pct']:.1f}%",
+        format_month(lowest_domestic_coverage["date"]),
+    )
 
-hydro_dependence_long = generation_share_data[
-    ["date", "Hydro", "Non-hydro"]
-].melt(
-    id_vars="date",
-    var_name="Generation source",
-    value_name="Share",
-)
+    row2_col1, row2_col2, row2_col3 = st.columns(3)
 
-fig_hydro_dependence = px.area(
-    hydro_dependence_long,
-    x="date",
-    y="Share",
-    color="Generation source",
-    labels={
-        "date": "Month",
-        "Share": "Share of domestic generation (%)",
-        "Generation source": "Generation source",
-    },
-    title="Hydro Dependence of Domestic Generation",
-)
+    render_insight_card(
+        row2_col1,
+        "Strongest Net Import",
+        f"{strongest_net_import['net_imports_mln_kwh']:,.0f} GWh",
+        format_month(strongest_net_import["date"]),
+    )
 
-fig_hydro_dependence.update_yaxes(
-    title_text="Share of domestic generation (%)",
-    range=[0, 100],
-    ticksuffix="%",
-)
+    render_insight_card(
+        row2_col2,
+        "Strongest Net Export",
+        f"{abs(strongest_net_export['net_imports_mln_kwh']):,.0f} GWh",
+        format_month(strongest_net_export["date"]),
+    )
 
-fig_hydro_dependence.update_xaxes(title_text="Month")
+    render_insight_card(
+        row2_col3,
+        "Highest Hydro Dependence",
+        f"{highest_hydro_dependence['hydro_dependence_pct']:.1f}%",
+        format_month(highest_hydro_dependence["date"]),
+    )
 
-st.plotly_chart(fig_hydro_dependence, use_container_width=True)
+    row3_col1, row3_col2, row3_col3 = st.columns(3)
 
-st.caption(
-    "This chart shows how much of Georgia's domestic electricity generation comes from hydro "
-    "versus all non-hydro sources combined."
-)
+    render_insight_card(
+        row3_col1,
+        "Highest Thermal Backup",
+        f"{highest_thermal_backup['thermal_backup_pct']:.1f}%",
+        format_month(highest_thermal_backup["date"]),
+    )
 
-
-generation_share_data["Thermal"] = calculate_share_pct(
-    generation_share_data["thermal_mln_kwh"],
-    generation_share_data["non_hydro_generation_gwh"],
-)
-
-generation_share_data["Wind"] = calculate_share_pct(
-    generation_share_data["wind_mln_kwh"],
-    generation_share_data["non_hydro_generation_gwh"],
-)
-
-generation_share_data["Other"] = calculate_share_pct(
-    generation_share_data["other_generation_mln_kwh"],
-    generation_share_data["non_hydro_generation_gwh"],
-)
-
-non_hydro_breakdown_long = generation_share_data[
-    ["date", "Thermal", "Wind", "Other"]
-].melt(
-    id_vars="date",
-    var_name="Generation source",
-    value_name="Share",
-)
-
-fig_non_hydro_breakdown = px.area(
-    non_hydro_breakdown_long,
-    x="date",
-    y="Share",
-    color="Generation source",
-    labels={
-        "date": "Month",
-        "Share": "Share within non-hydro generation (%)",
-        "Generation source": "Generation source",
-    },
-    title="Breakdown of Non-Hydro Generation",
-)
-
-fig_non_hydro_breakdown.update_yaxes(
-    title_text="Share within non-hydro generation (%)",
-    range=[0, 100],
-    ticksuffix="%",
-)
-
-fig_non_hydro_breakdown.update_xaxes(title_text="Month")
-
-st.plotly_chart(fig_non_hydro_breakdown, use_container_width=True)
-
-st.caption(
-    "This chart excludes hydro and shows the composition of non-hydro generation only. "
-    "The percentages are within non-hydro generation, not total domestic generation."
-)
 # -----------------------------
-# Raw Table
+# 6. Data Status
 # -----------------------------
 
-st.subheader("Processed Dataset Preview")
+st.subheader("Data Status")
 
-st.dataframe(df_year, use_container_width=True)
+monthly_records = len(df_year)
+latest_available_month = (
+    format_month(df_year["date"].max()) if monthly_records > 0 else "N/A"
+)
+missing_values_count = int(df_year.isna().sum().sum())
+
+status_col1, status_col2, status_col3 = st.columns(3)
+
+status_col1.metric("Data Source", "ESCO electricity balance")
+status_col2.metric("Selected Year", str(selected_year))
+status_col3.metric("Monthly Records", monthly_records)
+
+status_col4, status_col5, status_col6 = st.columns(3)
+
+status_col4.metric("Latest Available Month", latest_available_month)
+status_col5.metric("Missing Values", missing_values_count)
+
+if missing_values_count == 0 and monthly_records > 0:
+    status_col6.success("Validation Status: Passed")
+else:
+    status_col6.warning("Validation Status: Warning")
+
+
+# -----------------------------
+# 7. Processed Dataset Preview
+# -----------------------------
+
+with st.expander("Processed Dataset Preview"):
+    st.dataframe(df_year, use_container_width=True)
