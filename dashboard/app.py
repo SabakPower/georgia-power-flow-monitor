@@ -65,8 +65,13 @@ df = load_data()
 
 st.sidebar.header("Filters")
 
-available_years = sorted(df["year"].unique())
-selected_year = st.sidebar.selectbox("Select year", available_years)
+available_years = sorted(df["year"].unique(), reverse=True)
+
+selected_year = st.sidebar.selectbox(
+    "Select year",
+    available_years,
+    index=0,
+)
 
 df_year = df[df["year"] == selected_year].copy()
 
