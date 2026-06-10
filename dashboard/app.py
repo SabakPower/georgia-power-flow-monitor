@@ -54,8 +54,6 @@ st.title("Georgia Power Flow Monitor")
 st.write(
     """
     Open-source dashboard project for tracking Georgia's electricity system.
-
-    Current version: ESCO 2025 monthly electricity balance.
     """
 )
 
@@ -82,7 +80,14 @@ selected_year = st.sidebar.selectbox(
 )
 
 df_year = df[df["year"] == selected_year].copy()
+coverage_start_year = int(df["year"].min())
+coverage_end_year = int(df["year"].max())
 
+st.caption(
+    f"Data coverage: ESCO electricity balance, "
+    f"{coverage_start_year}–{coverage_end_year}, monthly data. "
+    f"Currently selected year: {selected_year}."
+)
 
 # -----------------------------
 # 1. System Overview
