@@ -6,7 +6,15 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
-DATA_FILE = Path("data/processed/esco/electricity_balance_monthly_clean.csv")
+BASE_DIR = Path(__file__).resolve().parents[1]
+
+DATA_FILE = (
+    BASE_DIR
+    / "data"
+    / "processed"
+    / "esco"
+    / "electricity_balance_monthly_clean.csv"
+)
 
 
 st.set_page_config(
