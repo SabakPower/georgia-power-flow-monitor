@@ -28,6 +28,11 @@ def load_data() -> pd.DataFrame:
     """Load processed ESCO electricity balance data."""
     df = pd.read_csv(DATA_FILE)
     df["date"] = pd.to_datetime(df["date"])
+    # Force pandas 3's default pyarrow-backed string columns back to plain
+    # object dtype: st.dataframe's Arrow serialization crashes on them
+    # (streamlit/streamlit#14609).
+    for col in df.select_dtypes(include=["string", "object"]).columns:
+        df[col] = df[col].astype(object)
     return df
 
 
@@ -162,7 +167,7 @@ fig_gen_cons = px.line(
 fig_gen_cons.update_yaxes(title_text="GWh")
 fig_gen_cons.update_xaxes(title_text="Month")
 
-st.plotly_chart(fig_gen_cons, use_container_width=True)
+st.plotly_chart(fig_gen_cons, width="stretch")
 
 st.caption(
     "Unit: GWh. Note: 1 GWh = 1 million kWh. "
@@ -183,7 +188,7 @@ fig_balance_gap = px.bar(
 fig_balance_gap.update_yaxes(title_text="GWh")
 fig_balance_gap.update_xaxes(title_text="Month")
 
-st.plotly_chart(fig_balance_gap, use_container_width=True)
+st.plotly_chart(fig_balance_gap, width="stretch")
 
 st.caption(
     "Positive values mean domestic generation exceeded domestic consumption. "
@@ -243,7 +248,7 @@ fig_mix = px.area(
 fig_mix.update_yaxes(title_text="GWh")
 fig_mix.update_xaxes(title_text="Month")
 
-st.plotly_chart(fig_mix, use_container_width=True)
+st.plotly_chart(fig_mix, width="stretch")
 
 st.caption(
     "Unit: GWh. Note: 1 GWh = 1 million kWh. "
@@ -315,7 +320,7 @@ fig_hydro_dependence.update_yaxes(
 
 fig_hydro_dependence.update_xaxes(title_text="Month")
 
-st.plotly_chart(fig_hydro_dependence, use_container_width=True)
+st.plotly_chart(fig_hydro_dependence, width="stretch")
 
 st.caption(
     "This chart shows how much of Georgia's domestic electricity generation comes from hydro "
@@ -366,7 +371,7 @@ fig_non_hydro_breakdown.update_yaxes(
 
 fig_non_hydro_breakdown.update_xaxes(title_text="Month")
 
-st.plotly_chart(fig_non_hydro_breakdown, use_container_width=True)
+st.plotly_chart(fig_non_hydro_breakdown, width="stretch")
 
 st.caption(
     "This chart excludes hydro and shows the composition of non-hydro generation only. "
@@ -420,7 +425,7 @@ fig_trade.add_hline(
     line_dash="dot",
 )
 
-st.plotly_chart(fig_trade, use_container_width=True)
+st.plotly_chart(fig_trade, width="stretch")
 
 st.caption(
     "Unit: GWh. Note: 1 GWh = 1 million kWh. "
@@ -510,7 +515,7 @@ fig_net_import_position.update_yaxes(
     ticksuffix="%",
 )
 
-st.plotly_chart(fig_net_import_position, use_container_width=True)
+st.plotly_chart(fig_net_import_position, width="stretch")
 
 st.caption(
     "Positive values indicate net importer months. Negative values indicate net exporter months. "
@@ -684,4 +689,4 @@ else:
 # -----------------------------
 
 with st.expander("Processed Dataset Preview"):
-    st.dataframe(df_year, use_container_width=True)
+    st.dataframe(df_year, width="stretch")
